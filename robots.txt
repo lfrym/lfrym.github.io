@@ -1,0 +1,4 @@
+# Discourage indexing of data explorers
+User-agent: *
+Disallow: /explorers/
+Disallow: /_data/
