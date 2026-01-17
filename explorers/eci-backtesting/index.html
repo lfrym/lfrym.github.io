@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECI Forecast Backtesting Explorer</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+        }
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .control-row:last-child {
+            margin-bottom: 0;
+        }
+        .control-row label {
+            font-weight: 600;
+            min-width: 120px;
+        }
+        .top-n-selector {
+            display: flex;
+            gap: 0;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 2px solid #9b59b6;
+        }
+        .top-n-selector button {
+            padding: 6px 12px;
+            border: none;
+            background: white;
+            color: #9b59b6;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-weight: 500;
+            transition: all 0.2s;
+            min-width: 36px;
+        }
+        .top-n-selector button.active {
+            background: #9b59b6;
+            color: white;
+        }
+        .top-n-selector button:hover:not(.active) {
+            background: #f5eef8;
+        }
+        #date-slider {
+            flex: 1;
+            min-width: 200px;
+            height: 8px;
+            -webkit-appearance: none;
+            background: #ddd;
+            border-radius: 4px;
+            outline: none;
+        }
+        #date-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #3498db;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        #date-slider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #3498db;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
+        }
+        #current-date {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #e74c3c;
+            min-width: 140px;
+            text-align: right;
+        }
+        .stats-box {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+        .stat {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .stat.highlight-blue {
+            background: #ebf5fb;
+            border: 1px solid #3498db;
+        }
+        .stat.highlight-green {
+            background: #e8f8f5;
+            border: 1px solid #2ecc71;
+        }
+        .stat-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        .stat-value {
+            font-size: 1.05em;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        .stat-value.blue { color: #3498db; }
+        .stat-value.green { color: #27ae60; }
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        #chart {
+            width: 100%;
+            height: 550px;
+        }
+        .legend-box {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 15px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 6px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+        }
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .legend-dot.blue { background: #3498db; }
+        .legend-dot.green-hollow {
+            background: transparent;
+            border: 2px solid #2ecc71;
+        }
+        .legend-dot.green { background: #2ecc71; }
+        .legend-line {
+            width: 20px;
+            height: 3px;
+        }
+        .legend-line.blue-solid { background: #3498db; }
+        .legend-line.blue-dashed {
+            background: repeating-linear-gradient(
+                90deg,
+                #3498db 0px,
+                #3498db 5px,
+                transparent 5px,
+                transparent 8px
+            );
+        }
+        .legend-line.green-solid { background: #2ecc71; }
+        .legend-line.green-dashed {
+            background: repeating-linear-gradient(
+                90deg,
+                #2ecc71 0px,
+                #2ecc71 5px,
+                transparent 5px,
+                transparent 8px
+            );
+        }
+        .legend-line.orange {
+            background: #e67e22;
+            width: 2px;
+            height: 20px;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: #666;
+        }
+        .play-controls {
+            display: flex;
+            gap: 10px;
+        }
+        .play-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.2s;
+        }
+        .play-btn.play {
+            background: #27ae60;
+            color: white;
+        }
+        .play-btn.play:hover {
+            background: #219a52;
+        }
+        .play-btn.stop {
+            background: #e74c3c;
+            color: white;
+        }
+        .play-btn.stop:hover {
+            background: #c0392b;
+        }
+        footer {
+            margin-top: 20px;
+            text-align: center;
+            color: #888;
+            font-size: 0.85em;
+        }
+        footer a {
+            color: #3498db;
+        }
+        .info-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border-radius: 0 6px 6px 0;
+            font-size: 0.9em;
+        }
+        .info-box strong {
+            color: #2980b9;
+        }
+        .summary-box {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .summary-box h3 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        .summary-stat {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .summary-stat .label {
+            font-size: 0.85em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .summary-stat .value {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .summary-stat .unit {
+            font-size: 0.8em;
+            color: #888;
+        }
+        .interpretation {
+            margin-top: 15px;
+            padding: 12px;
+            background: #fef9e7;
+            border-radius: 6px;
+            font-size: 0.9em;
+            color: #7d6608;
+        }
+        #slope-chart {
+            width: 100%;
+            height: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ECI Forecast Backtesting Explorer</h1>
+        <p class="subtitle">Interactive visualization of how ECI forecasts would have performed at different historical dates</p>
+
+        <div class="info-box">
+            <strong>How to read this chart:</strong>
+            <span style="color: #3498db;">Blue dots</span> show model capabilities as estimated at the backtest date.
+            <span style="color: #2ecc71;">Green hollow circles</span> show where those same models end up in today's final fit.
+            <span style="color: #2ecc71;">Green filled dots</span> are future models not yet released at the backtest date.
+            The <span style="color: #3498db;">blue trend line</span> is fitted on historical estimates;
+            the <span style="color: #2ecc71;">green trend line</span> is fitted on the same models using their final ECI scores.
+        </div>
+
+        <!-- Slope Comparison Summary -->
+        <div class="summary-box" id="summary-box" style="display: none;">
+            <h3>Slope Comparison Summary <span id="summary-top-n-label" style="color: #9b59b6;"></span></h3>
+            <p style="color: #666; font-size: 0.9em; margin-bottom: 15px;">
+                Comparing historical fit slopes (blue) vs final fit slopes (green) across all backtest dates.
+                Positive values mean historical fits overestimate the trend; negative means underestimate.
+            </p>
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="label">Mean Difference</div>
+                    <div class="value" id="summary-mean">-</div>
+                    <div class="unit">ECI/year</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="label">Median Difference</div>
+                    <div class="value" id="summary-median">-</div>
+                    <div class="unit">ECI/year</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="label">95% CI</div>
+                    <div class="value" id="summary-ci">-</div>
+                    <div class="unit">ECI/year</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="label">Backtest Dates</div>
+                    <div class="value" id="summary-n">-</div>
+                    <div class="unit">samples</div>
+                </div>
+            </div>
+            <div class="interpretation" id="interpretation"></div>
+        </div>
+
+        <!-- Slope Over Time Chart -->
+        <div class="chart-container">
+            <h3 style="margin-top: 0; color: #2c3e50;">Slope Estimates Over Time</h3>
+            <div id="slope-chart">
+                <div class="loading">Loading...</div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-row">
+                <label>Top-N Models:</label>
+                <div class="top-n-selector" id="top-n-selector">
+                    <!-- Buttons will be generated by JavaScript -->
+                </div>
+            </div>
+            <div class="control-row">
+                <label for="date-slider">Backtest Date:</label>
+                <input type="range" id="date-slider" min="0" max="100" value="0">
+                <span id="current-date">Loading...</span>
+                <div class="play-controls">
+                    <button id="play-btn" class="play-btn play">&#9654; Play</button>
+                </div>
+            </div>
+            <div class="stats-box">
+                <div class="stat highlight-blue">
+                    <div class="stat-label">Historical Slope</div>
+                    <div class="stat-value blue" id="stat-slope">-</div>
+                </div>
+                <div class="stat highlight-green">
+                    <div class="stat-label">Final Slope</div>
+                    <div class="stat-value green" id="stat-final-slope">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Slope Diff</div>
+                    <div class="stat-value" id="stat-slope-diff">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Model Type</div>
+                    <div class="stat-value" id="stat-model">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Data Points</div>
+                    <div class="stat-value" id="stat-points">-</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Breakpoint</div>
+                    <div class="stat-value" id="stat-breakpoint">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div id="chart">
+                <div class="loading">Loading visualization data...</div>
+            </div>
+            <div class="legend-box">
+                <div class="legend-item">
+                    <div class="legend-dot blue"></div>
+                    <span>Historical data (fit at backtest date)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot green-hollow"></div>
+                    <span>Same models in final fit</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot green"></div>
+                    <span>Future data (observed later)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line blue-solid"></div>
+                    <span>Historical trend (blue fit)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line green-solid"></div>
+                    <span>Final trend (green fit)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line blue-dashed"></div>
+                    <span>Forecast (from historical)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-line orange"></div>
+                    <span>Breakpoint</span>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p>
+                Data from <a href="https://epoch.ai" target="_blank">Epoch AI</a> |
+                <a href="https://github.com/epoch-research/epoch-research" target="_blank">Source Code</a>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        let fullData = null;
+        let currentTopN = 1;
+        let currentIndex = 0;
+        let isPlaying = false;
+        let playInterval = null;
+
+        // Load data
+        loadData();
+
+        function loadData() {
+            fetch('backtest_data.json')
+                .then(response => response.json())
+                .then(loadedData => {
+                    fullData = loadedData;
+                    initializeTopNSelector();
+                    initializeVisualization();
+                    updateSummary();
+                    updateSlopeChart();
+                })
+                .catch(error => {
+                    document.getElementById('chart').innerHTML =
+                        `<div class="loading" style="color: #e74c3c;">
+                            Error loading data: ${error.message}<br>
+                            Make sure backtest_data.json is in the same directory.
+                        </div>`;
+                });
+        }
+
+        function getCurrentData() {
+            return fullData.by_top_n[String(currentTopN)];
+        }
+
+        function initializeTopNSelector() {
+            const selector = document.getElementById('top-n-selector');
+            const maxTopN = fullData.metadata.max_top_n || 10;
+
+            selector.innerHTML = '';
+            for (let n = 1; n <= maxTopN; n++) {
+                const btn = document.createElement('button');
+                btn.textContent = n;
+                btn.className = n === currentTopN ? 'active' : '';
+                btn.onclick = () => switchTopN(n);
+                selector.appendChild(btn);
+            }
+        }
+
+        function switchTopN(n) {
+            if (isPlaying) {
+                togglePlay();
+            }
+
+            currentTopN = n;
+
+            // Update button states
+            const buttons = document.querySelectorAll('.top-n-selector button');
+            buttons.forEach((btn, idx) => {
+                btn.className = (idx + 1) === n ? 'active' : '';
+            });
+
+            // Reset index if needed
+            const data = getCurrentData();
+            if (currentIndex >= data.frames.length) {
+                currentIndex = data.frames.length - 1;
+            }
+
+            initializeVisualization();
+            updateSummary();
+            updateSlopeChart();
+        }
+
+        function updateSummary() {
+            const data = getCurrentData();
+            const stats = data.slope_comparison;
+
+            document.getElementById('summary-top-n-label').textContent = `(Top-${currentTopN})`;
+
+            if (!stats || stats.mean === null || stats.mean === undefined) {
+                document.getElementById('summary-box').style.display = 'none';
+                return;
+            }
+
+            document.getElementById('summary-box').style.display = 'block';
+            document.getElementById('summary-mean').textContent = stats.mean.toFixed(2);
+            document.getElementById('summary-median').textContent = stats.median.toFixed(2);
+            document.getElementById('summary-ci').textContent =
+                `[${stats.ci_95_lower.toFixed(1)}, ${stats.ci_95_upper.toFixed(1)}]`;
+            document.getElementById('summary-n').textContent = stats.n_samples;
+
+            // Generate interpretation
+            let interp = '';
+            if (stats.mean > 0.5) {
+                interp = `Historical fits tend to <strong>overestimate</strong> the trend slope by about ${Math.abs(stats.mean).toFixed(1)} ECI/year on average. This suggests that early model estimates are revised downward as more data becomes available.`;
+            } else if (stats.mean < -0.5) {
+                interp = `Historical fits tend to <strong>underestimate</strong> the trend slope by about ${Math.abs(stats.mean).toFixed(1)} ECI/year on average. This suggests that early model estimates are revised upward as more data becomes available.`;
+            } else {
+                interp = `Historical fits are relatively <strong>unbiased</strong> compared to final fits (mean difference: ${stats.mean.toFixed(2)} ECI/year). The 95% CI of [${stats.ci_95_lower.toFixed(1)}, ${stats.ci_95_upper.toFixed(1)}] shows the range of variation.`;
+            }
+            document.getElementById('interpretation').innerHTML = interp;
+        }
+
+        function updateSlopeChart() {
+            const data = getCurrentData();
+            const dates = data.frames.map(f => f.backtest_date);
+            const histSlopes = data.frames.map(f => f.fit_info.slope);
+            const finalSlopes = data.frames.map(f => f.fit_info.final_slope);
+
+            const traces = [
+                {
+                    x: dates,
+                    y: histSlopes,
+                    mode: 'lines+markers',
+                    name: 'Historical fit slope',
+                    line: { color: '#3498db', width: 2 },
+                    marker: { size: 6 }
+                },
+                {
+                    x: dates,
+                    y: finalSlopes,
+                    mode: 'lines+markers',
+                    name: 'Final fit slope',
+                    line: { color: '#2ecc71', width: 2 },
+                    marker: { size: 6 }
+                }
+            ];
+
+            const layout = {
+                title: {
+                    text: `Top-${currentTopN} Models`,
+                    font: { size: 14 }
+                },
+                xaxis: {
+                    title: 'Backtest Date',
+                    type: 'date',
+                    tickformat: '%Y-%m',
+                    gridcolor: '#eee'
+                },
+                yaxis: {
+                    title: 'Slope (ECI/year)',
+                    gridcolor: '#eee'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: 1.15
+                },
+                margin: { t: 40, r: 20, b: 50, l: 60 },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white',
+                hovermode: 'x unified'
+            };
+
+            Plotly.newPlot('slope-chart', traces, layout, { responsive: true });
+        }
+
+        function initializeVisualization() {
+            const data = getCurrentData();
+            const slider = document.getElementById('date-slider');
+            slider.max = data.frames.length - 1;
+            slider.value = currentIndex;
+
+            slider.oninput = (e) => {
+                currentIndex = parseInt(e.target.value);
+                updateVisualization();
+            };
+
+            document.getElementById('play-btn').onclick = togglePlay;
+
+            updateVisualization();
+        }
+
+        function togglePlay() {
+            const btn = document.getElementById('play-btn');
+            const data = getCurrentData();
+            if (isPlaying) {
+                isPlaying = false;
+                clearInterval(playInterval);
+                btn.innerHTML = '&#9654; Play';
+                btn.className = 'play-btn play';
+            } else {
+                isPlaying = true;
+                btn.innerHTML = '&#9632; Stop';
+                btn.className = 'play-btn stop';
+                playInterval = setInterval(() => {
+                    currentIndex++;
+                    if (currentIndex >= data.frames.length) {
+                        currentIndex = 0;
+                    }
+                    document.getElementById('date-slider').value = currentIndex;
+                    updateVisualization();
+                }, 500);
+            }
+        }
+
+        function updateVisualization() {
+            const data = getCurrentData();
+            const frame = data.frames[currentIndex];
+            const backtestDate = new Date(frame.backtest_date);
+
+            // Update date display
+            document.getElementById('current-date').textContent =
+                backtestDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+
+            // Update stats
+            const histSlope = frame.fit_info.slope;
+            const finalSlope = frame.fit_info.final_slope;
+            const slopeDiff = (histSlope != null && finalSlope != null) ? histSlope - finalSlope : null;
+
+            document.getElementById('stat-slope').textContent = histSlope != null ? histSlope.toFixed(1) : 'N/A';
+            document.getElementById('stat-final-slope').textContent = finalSlope != null ? finalSlope.toFixed(1) : 'N/A';
+            document.getElementById('stat-slope-diff').textContent = slopeDiff != null ? (slopeDiff >= 0 ? '+' : '') + slopeDiff.toFixed(1) : 'N/A';
+            document.getElementById('stat-model').textContent = frame.fit_info.model_type;
+            document.getElementById('stat-points').textContent = frame.fit_info.n_points;
+            document.getElementById('stat-breakpoint').textContent =
+                frame.fit_info.breakpoint_date
+                    ? new Date(frame.fit_info.breakpoint_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
+                    : 'None';
+
+            // Build traces
+            const traces = [];
+
+            // Historical points (blue filled)
+            const histDates = frame.historical_points.map(p => p.date);
+            const histCaps = frame.historical_points.map(p => p.historical_cap);
+            const histModels = frame.historical_points.map(p => p.model);
+
+            traces.push({
+                x: histDates,
+                y: histCaps,
+                mode: 'markers',
+                type: 'scatter',
+                name: 'Historical (at backtest)',
+                text: histModels,
+                hovertemplate: '%{text}<br>Date: %{x|%Y-%m-%d}<br>ECI (then): %{y:.1f}<extra></extra>',
+                marker: {
+                    color: '#3498db',
+                    size: 10,
+                    line: { color: 'white', width: 1 }
+                }
+            });
+
+            // Same models in final fit (green hollow)
+            const finalCaps = frame.historical_points.map(p => p.final_cap);
+            traces.push({
+                x: histDates,
+                y: finalCaps,
+                mode: 'markers',
+                type: 'scatter',
+                name: 'Final fit (same models)',
+                text: histModels,
+                hovertemplate: '%{text}<br>Date: %{x|%Y-%m-%d}<br>ECI (final): %{y:.1f}<extra></extra>',
+                marker: {
+                    color: 'rgba(46, 204, 113, 0)',
+                    size: 14,
+                    line: { color: '#2ecc71', width: 2.5 }
+                }
+            });
+
+            // Future points (green filled)
+            if (frame.future_points.length > 0) {
+                const futureDates = frame.future_points.map(p => p.date);
+                const futureCaps = frame.future_points.map(p => p.capability);
+                const futureModels = frame.future_points.map(p => p.model);
+
+                traces.push({
+                    x: futureDates,
+                    y: futureCaps,
+                    mode: 'markers',
+                    type: 'scatter',
+                    name: 'Future (observed later)',
+                    text: futureModels,
+                    hovertemplate: '%{text}<br>Date: %{x|%Y-%m-%d}<br>ECI: %{y:.1f}<extra></extra>',
+                    marker: {
+                        color: '#2ecc71',
+                        size: 10,
+                        line: { color: 'white', width: 1 }
+                    }
+                });
+            }
+
+            // Blue trend line - historical part (solid)
+            const histTrend = frame.trend_line.filter(p => !p.is_forecast);
+            if (histTrend.length > 0) {
+                traces.push({
+                    x: histTrend.map(p => p.date),
+                    y: histTrend.map(p => p.capability),
+                    mode: 'lines',
+                    type: 'scatter',
+                    name: 'Historical trend (blue)',
+                    line: { color: '#3498db', width: 3 },
+                    hoverinfo: 'skip'
+                });
+            }
+
+            // Blue trend line - forecast part (dashed)
+            const forecastTrend = frame.trend_line.filter(p => p.is_forecast);
+            if (forecastTrend.length > 0) {
+                const lastHist = histTrend[histTrend.length - 1];
+                const forecastWithConnection = lastHist ? [lastHist, ...forecastTrend] : forecastTrend;
+
+                traces.push({
+                    x: forecastWithConnection.map(p => p.date),
+                    y: forecastWithConnection.map(p => p.capability),
+                    mode: 'lines',
+                    type: 'scatter',
+                    name: 'Forecast (blue)',
+                    line: { color: '#3498db', width: 3, dash: 'dash' },
+                    hoverinfo: 'skip'
+                });
+            }
+
+            // Green trend line (final fit on same models) - historical part (solid)
+            if (frame.final_trend_line && frame.final_trend_line.length > 0) {
+                const greenHistTrend = frame.final_trend_line.filter(p => !p.is_forecast);
+                if (greenHistTrend.length > 0) {
+                    traces.push({
+                        x: greenHistTrend.map(p => p.date),
+                        y: greenHistTrend.map(p => p.capability),
+                        mode: 'lines',
+                        type: 'scatter',
+                        name: 'Final trend (green)',
+                        line: { color: '#2ecc71', width: 3 },
+                        hoverinfo: 'skip'
+                    });
+                }
+
+                // Green trend line - forecast part (dashed)
+                const greenForecastTrend = frame.final_trend_line.filter(p => p.is_forecast);
+                if (greenForecastTrend.length > 0) {
+                    const lastGreenHist = greenHistTrend[greenHistTrend.length - 1];
+                    const greenForecastWithConnection = lastGreenHist ? [lastGreenHist, ...greenForecastTrend] : greenForecastTrend;
+
+                    traces.push({
+                        x: greenForecastWithConnection.map(p => p.date),
+                        y: greenForecastWithConnection.map(p => p.capability),
+                        mode: 'lines',
+                        type: 'scatter',
+                        name: 'Forecast (green)',
+                        line: { color: '#2ecc71', width: 3, dash: 'dash' },
+                        hoverinfo: 'skip'
+                    });
+                }
+            }
+
+            // Calculate y-axis range
+            const allCaps = [...histCaps, ...finalCaps, ...(frame.future_points.map(p => p.capability) || [])];
+            const yMin = Math.min(...allCaps) - 5;
+            const yMax = Math.max(...allCaps) + 5;
+
+            // Breakpoint line
+            if (frame.fit_info.breakpoint_date) {
+                traces.push({
+                    x: [frame.fit_info.breakpoint_date, frame.fit_info.breakpoint_date],
+                    y: [yMin, yMax],
+                    mode: 'lines',
+                    type: 'scatter',
+                    name: 'Breakpoint',
+                    line: { color: '#e67e22', width: 2, dash: 'dot' },
+                    hoverinfo: 'skip'
+                });
+            }
+
+            // Backtest date line (red)
+            traces.push({
+                x: [frame.backtest_date, frame.backtest_date],
+                y: [yMin, yMax],
+                mode: 'lines',
+                type: 'scatter',
+                name: 'Backtest date',
+                line: { color: '#e74c3c', width: 2 },
+                hoverinfo: 'skip'
+            });
+
+            const layout = {
+                title: {
+                    text: `Top-${currentTopN} Trend - Forecast from ${backtestDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}`,
+                    font: { size: 18 }
+                },
+                xaxis: {
+                    title: 'Date',
+                    type: 'date',
+                    tickformat: '%Y-%m',
+                    gridcolor: '#eee'
+                },
+                yaxis: {
+                    title: 'ECI Score',
+                    gridcolor: '#eee',
+                    range: [yMin, yMax]
+                },
+                showlegend: false,
+                hovermode: 'closest',
+                margin: { t: 50, r: 20, b: 50, l: 60 },
+                plot_bgcolor: 'white',
+                paper_bgcolor: 'white'
+            };
+
+            Plotly.react('chart', traces, layout, { responsive: true });
+        }
+    </script>
+</body>
+</html>
